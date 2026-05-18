@@ -14,6 +14,9 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
+echo Unblocking downloaded files...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath '%~dp0' -Recurse | Unblock-File" >nul 2>&1
+
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
 set RC=%ERRORLEVEL%
 
