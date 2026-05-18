@@ -1,53 +1,97 @@
-GymPrayerPauser
-================
+Gym Prayer Pauser
+=================
 Automatically pauses music/video on this Windows PC at each of the five
-daily prayer times for Kuwait City, then resumes playback after a
-configurable number of minutes.
+daily prayer times for Kuwait City, and resumes playback after a few
+minutes (configurable per prayer).
 
 
-HOW IT WORKS
-------------
-* A master Windows Task Scheduler job ("GymPrayerPauser_Daily") runs every
+WHAT THE GYM STAFF NEEDS TO KNOW
+--------------------------------
+After installation there is a "Gym Prayer Pauser" icon on the Desktop.
+Double-click it to open a small window that shows:
+
+  - Today's prayer schedule (pause time, resume time, status)
+  - Recent activity (what the program has done, in plain English)
+  - "Refresh"     - reload status now
+  - "Test Pause"  - send a play/pause keystroke right now, to confirm
+                    music actually pauses on this PC
+  - "Uninstall"   - completely remove the program (asks to confirm)
+
+That's it. There's nothing else to click or configure day-to-day.
+
+
+HOW IT WORKS (FOR THE INSTALLER, NOT THE GYM STAFF)
+---------------------------------------------------
+* A master Windows scheduled task ("GymPrayerPauser_Daily") runs every
   day at 00:05.
-* It fetches today's prayer times from the Aladhan API (method 9, Kuwait
-  Ministry of Awqaf) and writes 10 one-shot scheduled tasks for today:
-  Pause + Resume for each of Fajr, Dhuhr, Asr, Maghrib, Isha.
-* At each pause and resume time, the system sends the standard Windows
-  "Play/Pause" media key. Spotify, Apple Music, YouTube in any browser,
-  VLC, etc. all respond to it.
+* It fetches today's prayer times from the Aladhan API
+  (method 9 - Kuwait Ministry of Awqaf) and writes 10 one-shot
+  scheduled tasks for today: Pause + Resume for each of Fajr, Dhuhr,
+  Asr, Maghrib, Isha.
+* At each pause / resume time the system sends the standard Windows
+  Play/Pause media key. Spotify, Apple Music, YouTube in any browser,
+  VLC, and most other players respond to it.
 * All actions are logged to:  C:\GymPrayerPauser\log.txt
-* If the internet is down at 00:05, the script falls back to yesterday's
-  cached prayer times (off by 1-2 minutes at most).
+* If the internet is down at 00:05 the script uses yesterday's cached
+  prayer times (off by 1-2 minutes at most).
 
 
 INSTALL
 -------
-1. Copy the whole "GymPrayerPauser-Deploy" folder onto the gym PC
-   (USB stick is fine). Put it anywhere - Desktop is easiest.
-2. Make sure the gym PC is logged in as the regular daily-use Windows
-   account. Tasks run inside the logged-in user session - that's what
-   lets the media keys reach Spotify / the browser.
-3. Right-click  install.bat  and choose  "Run as administrator".
-4. When it finishes you should see a list of scheduled tasks ending in
-   _Pause / _Resume, and  C:\GymPrayerPauser\log.txt  will exist with
-   "Daily schedule rebuild complete".
+1. Copy the whole deploy folder onto the gym PC (USB stick, or download
+   the ZIP from GitHub).
+   If you downloaded from the internet, first unblock the files so
+   Windows does not warn on every launch. Open PowerShell as
+   Administrator and run:
 
-That's it. Leave the PC logged in. The schedule rebuilds itself every
-night at 00:05.
+       Get-ChildItem -Path "<the unzipped folder>" -Recurse | Unblock-File
+
+2. Make sure the gym PC is logged in as the regular daily-use Windows
+   account. Tasks run inside the logged-in user session - that is what
+   lets the media key reach Spotify / the browser.
+
+3. Right-click  install.bat  and choose  "Run as administrator".
+
+When it finishes:
+  - A "Gym Prayer Pauser" shortcut appears on the Desktop.
+  - C:\GymPrayerPauser\log.txt exists with "Daily schedule rebuild
+    complete".
+  - The current power plan has "Allow wake timers" turned on so the
+    PC can wake up from sleep to run scheduled prayer pauses.
+
+
+KEEPING THE PC ON
+-----------------
+Scheduled tasks only fire while a user is logged in. The installer
+turns on wake timers, so a sleeping PC can be woken to run a task.
+But if the PC is fully powered off, or no one is logged in, nothing
+runs.
+
+For a gym PC the safest setup is:
+  - Keep one Windows user account permanently logged in (locking the
+    screen is fine).
+  - Set "Sleep" to "Never" on AC power (Control Panel -> Power Options
+    -> Change plan settings).
 
 
 UNINSTALL
 ---------
-Right-click  uninstall.bat  and choose  "Run as administrator".
-Removes all GymPrayerPauser_* scheduled tasks and deletes
-C:\GymPrayerPauser\.
+Two options:
+
+  A) Open the GUI from the Desktop icon and click "Uninstall".
+     It will prompt for admin permission and then remove everything.
+
+  B) Right-click  uninstall.bat  in the install folder and choose
+     "Run as administrator".
+
+Both options remove all GymPrayerPauser_* scheduled tasks, the
+C:\GymPrayerPauser folder, and the Desktop shortcut.
 
 
 CHANGING PAUSE DURATIONS OR THE ATHAN OFFSET (no reinstall needed)
 ------------------------------------------------------------------
-1. Open  C:\GymPrayerPauser\Schedule-PrayerPauses.ps1  in Notepad
-   (right-click -> Edit, or open Notepad as admin and File -> Open).
-2. Near the top you'll see:
+1. Open  C:\GymPrayerPauser\Schedule-PrayerPauses.ps1  in Notepad.
+2. Near the top:
 
        $PauseDurations = @{
            Fajr    = 25
@@ -58,10 +102,11 @@ CHANGING PAUSE DURATIONS OR THE ATHAN OFFSET (no reinstall needed)
        }
        $AthanOffsetMinutes = 0
 
-   - Change a duration (in minutes) to whatever you want.
+   - Change a duration (in minutes).
    - $AthanOffsetMinutes shifts ALL prayer pause times by +/- N minutes.
-     For example, set it to -2 if your local mosque starts the Athan two
-     minutes before the calculated time.
+     For example, set it to -2 if your local mosque starts the Athan
+     two minutes before the calculated time.
+
 3. Save the file.
 4. To apply the change to TODAY immediately, open PowerShell and run:
 
@@ -72,88 +117,57 @@ CHANGING PAUSE DURATIONS OR THE ATHAN OFFSET (no reinstall needed)
 
 SKIP TODAY (e.g. gym event, special class)
 ------------------------------------------
-Create an empty file called  skip-today.flag  inside the install folder.
-Both Pause and Resume actions will see it and do nothing, for today only.
-
-Easiest way - open Command Prompt (no admin needed) and run:
+Create an empty file called  skip-today.flag  inside the install folder:
 
     type nul > C:\GymPrayerPauser\skip-today.flag
 
-The flag only counts as "today" based on the file's modified date, so it
-auto-expires at midnight. (If a stale flag is still around the next day,
-the pause script deletes it on first run.)
+Both Pause and Resume actions will see it and do nothing for the rest
+of the day. The flag auto-expires at midnight.
 
-To CANCEL the skip before the day is over, just delete the file:
+Cancel the skip:
 
     del C:\GymPrayerPauser\skip-today.flag
 
 
-MANUAL TEST PAUSE (verify everything works on the gym PC)
----------------------------------------------------------
-The simplest test: start any music (Spotify, YouTube, whatever), then
-open Command Prompt or PowerShell and run:
-
-    powershell.exe -ExecutionPolicy Bypass -File C:\GymPrayerPauser\Send-MediaKey.ps1 -Reason Manual-Test
-
-Music should pause. Run it again to resume. Check
-C:\GymPrayerPauser\log.txt to confirm an entry like:
-
-    2026-05-17 14:32:01  Sent VK_MEDIA_PLAY_PAUSE [Manual-Test]
-
-To test the FULL scheduling pipeline (a fake prayer two minutes from
-now), open an admin Command Prompt and run (replace HH:MM with a time
-~2 minutes ahead):
-
-    schtasks /Create /TN "GymPrayerPauser_Test_Pause" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\GymPrayerPauser\Send-MediaKey.ps1 -Reason Test-Pause" /SC ONCE /ST HH:MM /F
-
-Then watch your music. After confirming, delete it:
-
-    schtasks /Delete /TN "GymPrayerPauser_Test_Pause" /F
-
-
 WHERE TO LOOK / AUDIT
 ---------------------
-* Log file:    C:\GymPrayerPauser\log.txt
-  Every action (fetch, schedule, pause, resume, skip, error) gets a
-  timestamped line. Open it any time in Notepad.
-
-* Today's cached prayer times:  C:\GymPrayerPauser\prayer-cache.json
-
-* Scheduled tasks list (PowerShell):
+* GUI window:   "Gym Prayer Pauser" on the Desktop. Shows today's
+                schedule and a human-readable recent-activity log.
+* Raw log:      C:\GymPrayerPauser\log.txt
+* Cached times: C:\GymPrayerPauser\prayer-cache.json
+* Task list (PowerShell):
 
       Get-ScheduledTask | Where-Object { $_.TaskName -like 'GymPrayerPauser_*' } | Format-Table TaskName,State
 
-  You should see "GymPrayerPauser_Daily" plus 10 per-prayer tasks
-  (Fajr_Pause, Fajr_Resume, Dhuhr_Pause, ...) - minus any that have
-  already fired today.
-
-* Last result of the daily task:
-
-      Get-ScheduledTaskInfo -TaskName GymPrayerPauser_Daily
+  You should see GymPrayerPauser_Daily plus 10 per-prayer tasks
+  (Fajr_Pause, Fajr_Resume, ...) - minus any that have already fired
+  today.
 
 
 TROUBLESHOOTING
 ---------------
 "Nothing happens at the prayer time."
-  - Was the PC awake and logged in? Interactive media keys only work
-    inside an active user session.
-  - Check log.txt for a "Sent VK_MEDIA_PLAY_PAUSE" line at that time.
-    If it's there, the script fired correctly and the issue is in
-    whatever media app you're using - try a manual test with the same
-    app.
+  - Was the PC awake and logged in? Open the GUI and check the
+    "Recent Activity" list. If there is no "Paused for X" entry near
+    the prayer time, the task did not fire (PC asleep / logged out).
+  - If the GUI DOES show "Paused for X" but you didn't hear it pause,
+    the issue is on the media-app side. Click "Test Pause" in the GUI
+    with music playing to confirm.
 
-"Times are off by a minute or two."
-  - The API can drift slightly day to day, and the local mosque may not
-    match the calculated Athan exactly. Use $AthanOffsetMinutes to nudge
-    everything by +/- a few minutes.
+"Times are off by a minute or two from the local mosque."
+  - Use $AthanOffsetMinutes (see "Changing pause durations" above).
 
 "Master task isn't running at 00:05."
-  - The PC must be on and the user logged in. The task is set with
-    "Start when available", so if the PC was off it will run on the next
-    login - but only once a day. You can also right-click the task in
-    Task Scheduler and choose Run to rebuild today's schedule any time.
+  - The PC must be on AND a user must be logged in (locked is fine).
+  - The installer turns on wake timers, but Windows can still refuse
+    to wake if the laptop lid is closed, hibernation is in use, or
+    the BIOS power settings forbid it. For a desktop gym PC this is
+    usually not an issue.
+  - You can right-click GymPrayerPauser_Daily in Task Scheduler and
+    choose Run to rebuild today's schedule manually any time.
 
 "I changed the script but nothing changed."
-  - The script is read fresh every time the master task runs, so changes
-    take effect at the next 00:05. To apply immediately, manually run:
-        powershell.exe -ExecutionPolicy Bypass -File C:\GymPrayerPauser\Schedule-PrayerPauses.ps1
+  - The script is re-read every time the master task runs, so changes
+    take effect at the next 00:05. To apply immediately:
+
+       powershell.exe -ExecutionPolicy Bypass -File C:\GymPrayerPauser\Schedule-PrayerPauses.ps1

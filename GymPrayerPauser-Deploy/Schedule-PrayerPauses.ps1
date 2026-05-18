@@ -130,6 +130,7 @@ function Register-MediaKeyTask {
                     -AllowStartIfOnBatteries `
                     -DontStopIfGoingOnBatteries `
                     -StartWhenAvailable `
+                    -WakeToRun `
                     -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
     $principal  = New-ScheduledTaskPrincipal `
                     -UserId "$env:USERDOMAIN\$env:USERNAME" `
