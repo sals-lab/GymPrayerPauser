@@ -16,7 +16,43 @@ $InstallDir   = 'C:\GymPrayerPauser'
 $LogFile      = Join-Path $InstallDir 'log.txt'
 $UninstallBat = Join-Path $InstallDir 'uninstall.bat'
 $MediaScript  = Join-Path $InstallDir 'Send-MediaKey.ps1'
+$ScheduleScript = Join-Path $InstallDir 'Schedule-PrayerPauses.ps1'
+$ConfigFile   = Join-Path $InstallDir 'config.json'
 $Prayers      = @('Fajr','Dhuhr','Asr','Maghrib','Isha')
+
+$DefaultDurations = @{ Fajr = 25; Dhuhr = 20; Asr = 20; Maghrib = 20; Isha = 20 }
+$DefaultOffset    = 0
+
+function Read-Config {
+    $cfg = @{
+        PauseDurations    = @{}
+        AthanOffsetMinutes = $DefaultOffset
+    }
+    foreach ($p in $Prayers) { $cfg.PauseDurations[$p] = $DefaultDurations[$p] }
+    if (Test-Path $ConfigFile) {
+        try {
+            $raw = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+            foreach ($p in $Prayers) {
+                $v = $raw.PauseDurations.$p
+                if ($null -ne $v) { $cfg.PauseDurations[$p] = [int]$v }
+            }
+            if ($null -ne $raw.AthanOffsetMinutes) {
+                $cfg.AthanOffsetMinutes = [int]$raw.AthanOffsetMinutes
+            }
+        } catch {}
+    }
+    return $cfg
+}
+
+function Save-Config {
+    param([hashtable]$Config)
+    $obj = [ordered]@{
+        AthanOffsetMinutes = [int]$Config.AthanOffsetMinutes
+        PauseDurations     = [ordered]@{}
+    }
+    foreach ($p in $Prayers) { $obj.PauseDurations[$p] = [int]$Config.PauseDurations[$p] }
+    $obj | ConvertTo-Json -Depth 5 | Out-File -FilePath $ConfigFile -Encoding UTF8 -Force
+}
 
 # ---------- data helpers ----------------------------------------------------
 
@@ -126,7 +162,7 @@ $monoFont  = New-Object System.Drawing.Font('Consolas',  10)
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text          = 'Gym Prayer Pauser'
-$form.Size          = New-Object System.Drawing.Size(580, 670)
+$form.Size          = New-Object System.Drawing.Size(720, 780)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox   = $false
@@ -156,7 +192,7 @@ $form.Controls.Add($lblDate)
 
 $grid = New-Object System.Windows.Forms.DataGridView
 $grid.Location               = New-Object System.Drawing.Point(20, 75)
-$grid.Size                   = New-Object System.Drawing.Size(530, 195)
+$grid.Size                   = New-Object System.Drawing.Size(670, 195)
 $grid.AllowUserToAddRows     = $false
 $grid.AllowUserToDeleteRows  = $false
 $grid.AllowUserToResizeRows  = $false
@@ -181,11 +217,81 @@ $grid.Columns[0].Name = 'Prayer'
 $grid.Columns[1].Name = 'Pause At'
 $grid.Columns[2].Name = 'Resume At'
 $grid.Columns[3].Name = 'Status'
-$grid.Columns[0].Width = 110
-$grid.Columns[1].Width = 130
-$grid.Columns[2].Width = 130
-$grid.Columns[3].Width = 155
+$grid.Columns[0].Width = 130
+$grid.Columns[1].Width = 170
+$grid.Columns[2].Width = 170
+$grid.Columns[3].Width = 195
 $form.Controls.Add($grid)
+
+# --- Pause Durations (settings) --------------------------------------------
+
+$lblSettings = New-Object System.Windows.Forms.Label
+$lblSettings.Text       = 'Pause Durations (minutes)'
+$lblSettings.Font       = $titleFont
+$lblSettings.ForeColor  = $colorAccent
+$lblSettings.AutoSize   = $true
+$lblSettings.Location   = New-Object System.Drawing.Point(20, 285)
+$form.Controls.Add($lblSettings)
+
+$pnlSettings = New-Object System.Windows.Forms.Panel
+$pnlSettings.Location    = New-Object System.Drawing.Point(20, 320)
+$pnlSettings.Size        = New-Object System.Drawing.Size(670, 85)
+$pnlSettings.BorderStyle = 'FixedSingle'
+$pnlSettings.BackColor   = [System.Drawing.Color]::FromArgb(250, 250, 252)
+$form.Controls.Add($pnlSettings)
+
+$spinners = @{}
+$startCfg = Read-Config
+$xPos = 18
+foreach ($p in $Prayers) {
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text     = $p
+    $lbl.Font     = $labelFont
+    $lbl.AutoSize = $true
+    $lbl.Location = New-Object System.Drawing.Point($xPos, 8)
+    $pnlSettings.Controls.Add($lbl)
+
+    $spn = New-Object System.Windows.Forms.NumericUpDown
+    $spn.Location  = New-Object System.Drawing.Point($xPos, 32)
+    $spn.Size      = New-Object System.Drawing.Size(72, 30)
+    $spn.Minimum   = 1
+    $spn.Maximum   = 240
+    $spn.Value     = [int]$startCfg.PauseDurations[$p]
+    $spn.Font      = $bodyFont
+    $pnlSettings.Controls.Add($spn)
+    $spinners[$p] = $spn
+
+    $xPos += 90
+}
+
+# Offset spinner
+$lblOff = New-Object System.Windows.Forms.Label
+$lblOff.Text     = 'Athan offset'
+$lblOff.Font     = $labelFont
+$lblOff.AutoSize = $true
+$lblOff.Location = New-Object System.Drawing.Point(490, 8)
+$pnlSettings.Controls.Add($lblOff)
+
+$spnOffset = New-Object System.Windows.Forms.NumericUpDown
+$spnOffset.Location  = New-Object System.Drawing.Point(490, 32)
+$spnOffset.Size      = New-Object System.Drawing.Size(72, 30)
+$spnOffset.Minimum   = -60
+$spnOffset.Maximum   = 60
+$spnOffset.Value     = [int]$startCfg.AthanOffsetMinutes
+$spnOffset.Font      = $bodyFont
+$pnlSettings.Controls.Add($spnOffset)
+
+# Save button (inside the settings panel)
+$btnSave = New-Object System.Windows.Forms.Button
+$btnSave.Text      = 'Save && Apply'
+$btnSave.Font      = $labelFont
+$btnSave.Location  = New-Object System.Drawing.Point(580, 28)
+$btnSave.Size      = New-Object System.Drawing.Size(80, 38)
+$btnSave.BackColor = $colorAccent
+$btnSave.ForeColor = [System.Drawing.Color]::White
+$btnSave.FlatStyle = 'Flat'
+$btnSave.FlatAppearance.BorderColor = $colorAccent
+$pnlSettings.Controls.Add($btnSave)
 
 # --- Recent Activity --------------------------------------------------------
 
@@ -194,23 +300,23 @@ $lblLog.Text       = 'Recent Activity'
 $lblLog.Font       = $titleFont
 $lblLog.ForeColor  = $colorAccent
 $lblLog.AutoSize   = $true
-$lblLog.Location   = New-Object System.Drawing.Point(20, 290)
+$lblLog.Location   = New-Object System.Drawing.Point(20, 420)
 $form.Controls.Add($lblLog)
 
 $logBox = New-Object System.Windows.Forms.ListBox
-$logBox.Location    = New-Object System.Drawing.Point(20, 325)
-$logBox.Size        = New-Object System.Drawing.Size(530, 230)
+$logBox.Location    = New-Object System.Drawing.Point(20, 455)
+$logBox.Size        = New-Object System.Drawing.Size(670, 195)
 $logBox.Font        = $monoFont
 $logBox.BorderStyle = 'FixedSingle'
 $logBox.IntegralHeight = $false
 $form.Controls.Add($logBox)
 
-# --- Buttons ----------------------------------------------------------------
+# --- Bottom buttons ---------------------------------------------------------
 
 $btnRefresh = New-Object System.Windows.Forms.Button
 $btnRefresh.Text     = 'Refresh'
 $btnRefresh.Font     = $labelFont
-$btnRefresh.Location = New-Object System.Drawing.Point(20, 575)
+$btnRefresh.Location = New-Object System.Drawing.Point(20, 670)
 $btnRefresh.Size     = New-Object System.Drawing.Size(120, 40)
 $btnRefresh.BackColor = [System.Drawing.Color]::FromArgb(235, 235, 235)
 $btnRefresh.FlatStyle = 'Flat'
@@ -220,7 +326,7 @@ $form.Controls.Add($btnRefresh)
 $btnTest = New-Object System.Windows.Forms.Button
 $btnTest.Text     = 'Test Pause'
 $btnTest.Font     = $labelFont
-$btnTest.Location = New-Object System.Drawing.Point(150, 575)
+$btnTest.Location = New-Object System.Drawing.Point(150, 670)
 $btnTest.Size     = New-Object System.Drawing.Size(120, 40)
 $btnTest.BackColor = [System.Drawing.Color]::FromArgb(235, 235, 235)
 $btnTest.FlatStyle = 'Flat'
@@ -230,7 +336,7 @@ $form.Controls.Add($btnTest)
 $btnUninstall = New-Object System.Windows.Forms.Button
 $btnUninstall.Text      = 'Uninstall'
 $btnUninstall.Font      = $labelFont
-$btnUninstall.Location  = New-Object System.Drawing.Point(430, 575)
+$btnUninstall.Location  = New-Object System.Drawing.Point(570, 670)
 $btnUninstall.Size      = New-Object System.Drawing.Size(120, 40)
 $btnUninstall.BackColor = $colorDanger
 $btnUninstall.ForeColor = [System.Drawing.Color]::White
@@ -273,6 +379,53 @@ function Update-View {
 }
 
 $btnRefresh.Add_Click({ Update-View })
+
+$btnSave.Add_Click({
+    # Snapshot the values from the spinners.
+    $newCfg = @{
+        PauseDurations    = @{}
+        AthanOffsetMinutes = [int]$spnOffset.Value
+    }
+    foreach ($p in $Prayers) {
+        $newCfg.PauseDurations[$p] = [int]$spinners[$p].Value
+    }
+
+    try {
+        Save-Config -Config $newCfg
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Could not save settings: $_",
+            'Error', [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+        return
+    }
+
+    # Re-running the scheduler needs admin (it registers scheduled tasks).
+    # Start-Process -Verb RunAs triggers the UAC prompt.
+    $applied = $false
+    try {
+        $proc = Start-Process -FilePath 'powershell.exe' `
+            -ArgumentList @('-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$ScheduleScript) `
+            -Verb RunAs -Wait -PassThru -ErrorAction Stop
+        $applied = ($proc.ExitCode -eq 0)
+    } catch {
+        # Most common cause: user clicked No on the UAC prompt.
+        $applied = $false
+    }
+
+    Update-View
+
+    if ($applied) {
+        [System.Windows.Forms.MessageBox]::Show(
+            "Settings saved and applied to today's remaining prayers.",
+            'Saved', [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+    } else {
+        [System.Windows.Forms.MessageBox]::Show(
+            "Settings saved.`n`nThey will take effect automatically at midnight. To apply them to TODAY's remaining prayers, click Save & Apply again and accept the admin prompt.",
+            'Saved (not applied yet)', [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+    }
+})
 
 $btnTest.Add_Click({
     try {

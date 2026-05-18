@@ -11,6 +11,10 @@ After installation there is a "Gym Prayer Pauser" icon on the Desktop.
 Double-click it to open a small window that shows:
 
   - Today's prayer schedule (pause time, resume time, status)
+  - Pause Durations (minutes) - one number for each prayer, plus an
+    "Athan offset" that shifts every prayer by +/- a few minutes. Type
+    or click the up/down arrows, then press "Save & Apply".
+    Saving needs admin permission (Windows will ask).
   - Recent activity (what the program has done, in plain English)
   - "Refresh"     - reload status now
   - "Test Pause"  - send a play/pause keystroke right now, to confirm
@@ -88,31 +92,37 @@ Both options remove all GymPrayerPauser_* scheduled tasks, the
 C:\GymPrayerPauser folder, and the Desktop shortcut.
 
 
-CHANGING PAUSE DURATIONS OR THE ATHAN OFFSET (no reinstall needed)
-------------------------------------------------------------------
-1. Open  C:\GymPrayerPauser\Schedule-PrayerPauses.ps1  in Notepad.
-2. Near the top:
+CHANGING PAUSE DURATIONS OR THE ATHAN OFFSET
+--------------------------------------------
+The easy way (recommended for gym staff):
 
-       $PauseDurations = @{
-           Fajr    = 25
-           Dhuhr   = 20
-           Asr     = 20
-           Maghrib = 20
-           Isha    = 20
+  1. Double-click the "Gym Prayer Pauser" icon on the Desktop.
+  2. In the "Pause Durations (minutes)" row, adjust the values for any
+     prayer, and optionally the "Athan offset" (e.g. -2 if your mosque
+     starts the call to prayer two minutes before the calculated time).
+  3. Click "Save & Apply". Windows will ask for admin permission - say
+     Yes. Today's remaining prayers get re-scheduled immediately, and
+     the new values persist forever (saved in config.json).
+
+If you decline the admin prompt the values are still saved - they'll
+take effect at midnight when the daily schedule rebuilds.
+
+The technical way (for admins editing remotely):
+  Edit  C:\GymPrayerPauser\config.json  with Notepad. Format:
+
+       {
+         "AthanOffsetMinutes": 0,
+         "PauseDurations": {
+           "Fajr": 25, "Dhuhr": 20, "Asr": 20, "Maghrib": 20, "Isha": 20
+         }
        }
-       $AthanOffsetMinutes = 0
 
-   - Change a duration (in minutes).
-   - $AthanOffsetMinutes shifts ALL prayer pause times by +/- N minutes.
-     For example, set it to -2 if your local mosque starts the Athan
-     two minutes before the calculated time.
-
-3. Save the file.
-4. To apply the change to TODAY immediately, open PowerShell and run:
+  Save the file. Changes take effect at the next 00:05 rebuild, OR
+  immediately if you run:
 
        powershell.exe -ExecutionPolicy Bypass -File C:\GymPrayerPauser\Schedule-PrayerPauses.ps1
 
-   Otherwise the change takes effect automatically at 00:05 tonight.
+  (must be run as administrator)
 
 
 SKIP TODAY (e.g. gym event, special class)

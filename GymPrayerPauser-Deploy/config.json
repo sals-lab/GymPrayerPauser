@@ -1,0 +1,10 @@
+{
+  "AthanOffsetMinutes": 0,
+  "PauseDurations": {
+    "Fajr": 25,
+    "Dhuhr": 20,
+    "Asr": 20,
+    "Maghrib": 20,
+    "Isha": 20
+  }
+}

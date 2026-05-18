@@ -7,9 +7,11 @@
 # and can also be run manually any time to rebuild today's schedule.
 # ============================================================================
 
-# ---------- CONFIG (edit these to tune behavior) ----------------------------
+# ---------- DEFAULTS (used only if config.json is missing or invalid) -------
+# Day-to-day tuning is done via the GUI (Desktop icon -> Save & Apply),
+# which writes to C:\GymPrayerPauser\config.json. This script reads that file
+# every time it runs. The values below are just safety fallbacks.
 
-# Per-prayer pause duration in minutes.
 $PauseDurations = @{
     Fajr    = 25
     Dhuhr   = 20
@@ -17,10 +19,6 @@ $PauseDurations = @{
     Maghrib = 20
     Isha    = 20
 }
-
-# Shift ALL pause times by +/- N minutes (e.g. -2 to start 2 min earlier).
-# Use this to align with the local mosque's actual Athan if it differs
-# from the calculated time.
 $AthanOffsetMinutes = 0
 
 # Aladhan API: method=9 is Kuwait (Ministry of Awqaf).
@@ -31,6 +29,7 @@ $ApiUrl = 'http://api.aladhan.com/v1/timingsByCity?city=Kuwait%20City&country=Ku
 $InstallDir = 'C:\GymPrayerPauser'
 $LogFile    = Join-Path $InstallDir 'log.txt'
 $CacheFile  = Join-Path $InstallDir 'prayer-cache.json'
+$ConfigFile = Join-Path $InstallDir 'config.json'
 $TaskPrefix = 'GymPrayerPauser_'
 $MasterTask = 'GymPrayerPauser_Daily'
 $Prayers    = @('Fajr','Dhuhr','Asr','Maghrib','Isha')
@@ -160,7 +159,36 @@ if (-not (Test-Path $InstallDir)) {
 
 Write-Log '=== Daily schedule rebuild starting ==='
 Write-Log ("Running as user: {0}\{1}" -f $env:USERDOMAIN, $env:USERNAME)
+
+# Load user-editable config (written by the GUI). Falls back to defaults if
+# the file is missing or unreadable.
+if (Test-Path $ConfigFile) {
+    try {
+        $cfg = Get-Content $ConfigFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if ($cfg.PauseDurations) {
+            foreach ($p in $Prayers) {
+                $v = $cfg.PauseDurations.$p
+                if ($null -ne $v) {
+                    $iv = [int]$v
+                    if ($iv -ge 1 -and $iv -le 240) { $PauseDurations[$p] = $iv }
+                }
+            }
+        }
+        if ($null -ne $cfg.AthanOffsetMinutes) {
+            $ov = [int]$cfg.AthanOffsetMinutes
+            if ($ov -ge -60 -and $ov -le 60) { $AthanOffsetMinutes = $ov }
+        }
+        Write-Log "Loaded config.json"
+    } catch {
+        Write-Log "WARN: could not read config.json ($_); using defaults"
+    }
+} else {
+    Write-Log "config.json not found; using defaults"
+}
+
 Write-Log ("AthanOffsetMinutes = {0}" -f $AthanOffsetMinutes)
+Write-Log ("PauseDurations = Fajr={0} Dhuhr={1} Asr={2} Maghrib={3} Isha={4}" -f `
+    $PauseDurations.Fajr, $PauseDurations.Dhuhr, $PauseDurations.Asr, $PauseDurations.Maghrib, $PauseDurations.Isha)
 
 Remove-OldPrayerTasks
 

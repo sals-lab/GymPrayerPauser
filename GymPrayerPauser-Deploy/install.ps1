@@ -34,6 +34,28 @@ foreach ($f in $filesToCopy) {
     Write-Host "Copied $f"
 }
 
+# config.json holds the user-editable durations + Athan offset. Only write
+# defaults if the file doesn't already exist - we don't want to clobber a
+# gym manager's tuned settings on a re-install.
+$installedConfig = Join-Path $InstallDir 'config.json'
+if (-not (Test-Path $installedConfig)) {
+    $srcConfig = Join-Path $SrcDir 'config.json'
+    if (Test-Path $srcConfig) {
+        Copy-Item -Path $srcConfig -Destination $InstallDir -Force
+        Write-Host "Copied config.json (defaults)"
+    } else {
+        @'
+{
+  "AthanOffsetMinutes": 0,
+  "PauseDurations": { "Fajr": 25, "Dhuhr": 20, "Asr": 20, "Maghrib": 20, "Isha": 20 }
+}
+'@ | Out-File -FilePath $installedConfig -Encoding UTF8 -Force
+        Write-Host "Created config.json (defaults)"
+    }
+} else {
+    Write-Host "Kept existing config.json"
+}
+
 # --- Generate a custom app icon (blue circle with white pause bars) --------
 $iconPath = Join-Path $InstallDir 'app.ico'
 try {
